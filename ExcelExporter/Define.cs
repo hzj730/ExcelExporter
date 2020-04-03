@@ -7,6 +7,6 @@ namespace ExcelExporter
 {
     public class Define
     {
-        public static readonly string ExcelPath = "./excel";
+        public static readonly string ExcelPath = "../../excel/";
     }
 }

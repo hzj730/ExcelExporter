@@ -21,7 +21,7 @@ namespace ExcelExporter
 
             if (args[0] == "lua")
             {
-
+                ExcelExporter.lua.ExcelToLua.AnalysisExcelFile(Define.ExcelPath + "endless_abyss.xlsx");
             }
             else if (args[0] == "tars")
             {
