@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ExcelExporter.lua;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,7 +22,11 @@ namespace ExcelExporter
 
             if (args[0] == "lua")
             {
-                ExcelExporter.lua.ExcelToLua.AnalysisExcelFile(Define.ExcelPath + "endless_abyss.xlsx");
+                ExcelToLua excelToLua = new ExcelToLua();
+                //excelToLua.AnalysisExcelFile(Define.ExcelPath + "endless_abyss.xlsx");
+                excelToLua.AnalysisExcelFile(Define.ExcelPath + "sample.xlsx");
+
+                excelToLua.genTableFieldLua();
             }
             else if (args[0] == "tars")
             {
