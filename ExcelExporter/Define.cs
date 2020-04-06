@@ -9,6 +9,8 @@ namespace ExcelExporter
     {
         public static readonly string ExcelPath = "../../excel/";
         public static readonly string OutputLuaPath = ExcelPath + "lua/";
+        public static readonly int StartColumIndex = 1; // 表内容默认从第二例起有效，第一列特殊标记用
+        public static readonly int StartRowIndex = 5; // 表内容第六行起，前5行为保留用特殊作用
 
         public static string TABLE_FIELD_TEMP =
 @"-- 该文件自动生成，请不要随修改

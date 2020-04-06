@@ -23,8 +23,8 @@ namespace ExcelExporter
             if (args[0] == "lua")
             {
                 ExcelToLua excelToLua = new ExcelToLua();
-                //excelToLua.AnalysisExcelFile(Define.ExcelPath + "endless_abyss.xlsx");
-                excelToLua.AnalysisExcelFile(Define.ExcelPath + "sample.xlsx");
+                excelToLua.AnalysisExcelFile(Define.ExcelPath + "endless_abyss.xlsx");
+                //excelToLua.AnalysisExcelFile(Define.ExcelPath + "sample.xlsx");
 
                 excelToLua.genTableFieldLua();
             }

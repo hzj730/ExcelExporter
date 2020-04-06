@@ -120,13 +120,21 @@ namespace ExcelExporter.lua
                 ColumCltField.Add(cell.ToString());
             }
 
-            for (int row = 5; row <= TotalRowCount; row++)
+            for (int row = Define.StartRowIndex; row <= TotalRowCount; row++)
             {
                 IRow rowData = sheet.GetRow(row);
                 if (rowData != null) //null is when the row only contains empty cells 
                 {
                     //MessageBox.Show(string.Format("Row {0} = {1}", row, sheet.GetRow(row).GetCell(0).StringCellValue));
-                    table_data += ProcessRow(row, rowData);
+                    ICell cell0 = rowData.GetCell(0);
+                    if (cell0 != null && cell0.ToString().StartsWith("##"))
+                    {
+                        Console.WriteLine(string.Format("Ignore Sheet {0} Row {1}.", sheet.SheetName, row));
+                    }
+                    else
+                    {
+                        table_data += ProcessRow(row, rowData);
+                    }
                 }
             }
 
@@ -143,62 +151,73 @@ namespace ExcelExporter.lua
             int lastCellNum = row.LastCellNum;
 
             row_data += "{";
-            for (int i = 0; i < ColumCltField.Count; i++)
+            // 第一列默认忽略
+            for (int i = Define.StartColumIndex; i < ColumCltField.Count; i++)
             {
-                string field = ColumCltField[i];
-                if (!field.StartsWith("##"))
-                {
-                    // 根据类型区分处理
-                    string type = ColumType[i];
-                    ICell cell = row.GetCell(i);
+                // 根据类型区分处理
+                string type = ColumType[i];
+                ICell cell = row.GetCell(i);
 
-                    if (type == "int")
+                if (type == "int")
+                {
+                    row_data += (cell != null) ? cell.NumericCellValue.ToString() : Define.DefaultNum;// Utils.GetCellValue(row.GetCell(i)); //
+                }
+                else if (type == "string")
+                {
+                    row_data += (cell != null) ? "\"" + cell.StringCellValue + "\"" : Define.DefaultStr;
+                }
+                else if (type == "json")
+                {
+                    if (cell != null)
                     {
-                        row_data += (cell != null) ? cell.NumericCellValue.ToString() : Define.DefaultNum;// Utils.GetCellValue(row.GetCell(i)); //
-                    }
-                    else if (type == "string")
-                    {
-                        row_data += (cell != null) ? "\"" + cell.StringCellValue + "\"" : Define.DefaultStr;
-                    }
-                    else if (type == "json")
-                    {
-                        if (cell != null)
+                        string json = cell.StringCellValue;
+                        var jsonObj = JsonConvert.DeserializeObject(json);
+                        //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
+                        if (jsonObj is JArray)
                         {
-                            string json = cell.StringCellValue;
-                            var jsonObj = JsonConvert.DeserializeObject(json);
-                            //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
-                            if (jsonObj is JArray)
+                            string s = "{";
+                            foreach (var item in (JArray)jsonObj)
                             {
-                                var arr = JArray.Parse(json);
-                                string s = "{";
-                                foreach (var item in arr)
+                                if (item.Type == JTokenType.Object)
                                 {
-                                    if (item.Type == JTokenType.Object)
-                                    {
-                                        var obj = (JObject)item;
-                                        s += JsonObjectToLuaStr(obj);
-                                    }
+                                    var obj = (JObject)item;
+                                    s += JsonObjectToLuaStr(obj);
                                 }
-                                s += "}";
-                                row_data += s;
+                                else if (item.Type == JTokenType.String)
+                                {
+                                    s += "\"" + item.ToString() + "\",";
+                                }
+                                else if (item.Type == JTokenType.Integer || item.Type == JTokenType.Float)
+                                {
+                                    s += item.ToString() + ",";
+                                }
                             }
-                            else
-                            {
-                                var obj = JObject.Parse(json);
-                                row_data += JsonObjectToLuaStr(obj);
-                            }
+                            s += "}";
+                            row_data += s;
                         }
                         else
                         {
-
+                            var obj = (JObject)jsonObj;
+                            if (obj != null)
+                            {
+                                row_data += JsonObjectToLuaStr(obj);
+                            }
+                            else
+                            {
+                                row_data += Define.DefaultTable;
+                            }
                         }
                     }
                     else
                     {
-                        throw new ArgumentException("Cell Type Unknow", "CellType");
+
                     }
-                    row_data += ",";
                 }
+                else
+                {
+                    throw new ArgumentException("Cell Type Unknow", "CellType");
+                }
+                row_data += ",";
             }
 
             row_data += "},\n";
