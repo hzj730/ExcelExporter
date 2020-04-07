@@ -6,6 +6,41 @@ fields.DefaultTable = {}
 
 -- 所有lua表的字段定义
 fields.TableDefine = {
+activity_summary = {
+    meta = {
+        id = 1, -- 键名
+        activity_name = 2, -- 活动名
+        disable = 3, -- 禁用
+        param_reward = 4, -- 奖励参数
+        param_show = 5, -- 展示参数
+        preview_start_ts = 6, -- 预告起始时间戳
+        start_ts_type = 7, -- 起始时间类型
+        start_ts = 8, -- 起始时间戳
+        end_ts = 9, -- 结束时间戳
+        duration = 10, -- 持续时间
+    },
+    file = 'activity_summary.lua',
+},
+daily_sign_in = {
+    meta = {
+        id = 1, -- 唯一id
+        reward = 2, -- 奖励
+    },
+    file = 'daily_sign_in.lua',
+},
+new_account = {
+    meta = {
+        id = 1, -- 唯一id
+        quest_name = 2, -- 任务描述
+        quest_set = 3, -- 任务所在组
+        objective_num = 4, -- 要求数量
+        objective_data = 5, -- 目标数据
+        goto_feature = 6, -- 前往功能
+        reward = 7, -- 完成后奖励
+        quest_point = 8, -- 完成积分
+    },
+    file = 'new_account.lua',
+},
 abyss = {
     meta = {
         id = 1, -- 唯一id

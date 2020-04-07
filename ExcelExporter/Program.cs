@@ -20,14 +20,19 @@ namespace ExcelExporter
                 Console.WriteLine(args[i]);
             }
 
-            if (args[0] == "lua")
+            if (args.Length == 0 || args[0] == "lua")
             {
-                ExcelToLua excelToLua = new ExcelToLua();
-                //excelToLua.AnalysisExcelFile(Define.ExcelPath + "endless_abyss.xlsx");
-                //excelToLua.AnalysisExcelFile(Define.ExcelPath + "sample.xlsx");
-                excelToLua.PackageDirectory();
+                try
+                {
+                    ExcelToLua excelToLua = new ExcelToLua();
+                    excelToLua.PackageDirectory();
 
-                excelToLua.genTableFieldLua();
+                    excelToLua.genTableFieldLua();
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e.ToString());
+                }
             }
             else if (args[0] == "tars")
             {
@@ -37,6 +42,8 @@ namespace ExcelExporter
             {
                 Console.WriteLine("参数错误");
             }
+
+            Console.ReadKey();
         }
     }
 }

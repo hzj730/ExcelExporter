@@ -7,7 +7,11 @@ namespace ExcelExporter
 {
     public class Define
     {
+#if DEBUG
         public static readonly string ExcelPath = "../../excel/";
+#else
+        public static readonly string ExcelPath = "../excel/";
+#endif
         public static readonly string OutputLuaPath = ExcelPath + "lua/";
         public static readonly int StartColumIndex = 1; // 表内容默认从第二例起有效，第一列特殊标记用
         public static readonly int StartRowIndex = 5; // 表内容第六行起，前5行为保留用特殊作用

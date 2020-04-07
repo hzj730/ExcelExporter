@@ -95,14 +95,13 @@ namespace ExcelExporter.lua
 
         private void ProcessSheet(ISheet sheet)
         {
-            int TotalRowCount = sheet.LastRowNum;
-            if (TotalRowCount < 5)
-            {
-                Console.Error.WriteLine("Excel文件格式不正确行数过少");
-                return;
-            }
             // 第一行 记录列数 记录列描述
             IRow row1 = sheet.GetRow(0);
+            // 第一个单元格不是array字段，该表不需要导出
+            if (row1 == null || row1.GetCell(0) == null || row1.GetCell(0).StringCellValue != "array")
+            {
+                return;
+            }
             int colums = 0;
             foreach (var cell in row1.Cells)
             {
@@ -111,6 +110,13 @@ namespace ExcelExporter.lua
                     break;
                 }
                 colums++;
+            }
+
+            int TotalRowCount = sheet.LastRowNum;
+            if (TotalRowCount < 5)
+            {
+                Console.Error.WriteLine("Excel文件格式不正确行数过少");
+                return;
             }
 
             IRow row2 = sheet.GetRow(1);
@@ -148,7 +154,7 @@ namespace ExcelExporter.lua
                 ColumCltField.Add(cell.ToString());
             }
 
-            ProcessSheetFields(sheet.SheetName, row4, row1);
+            ProcessSheetFields(sheet.SheetName, row4, row1, row2);
 
             for (int row = Define.StartRowIndex; row <= TotalRowCount; row++)
             {
@@ -203,39 +209,13 @@ namespace ExcelExporter.lua
                         string json = cell.StringCellValue;
                         var jsonObj = JsonConvert.DeserializeObject(json);
                         //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
-                        if (jsonObj is JArray)
+                        if (jsonObj != null)
                         {
-                            string s = "{";
-                            foreach (var item in (JArray)jsonObj)
-                            {
-                                if (item.Type == JTokenType.Object)
-                                {
-                                    var obj = (JObject)item;
-                                    s += JsonObjectToLuaStr(obj);
-                                }
-                                else if (item.Type == JTokenType.String)
-                                {
-                                    s += "\"" + item.ToString() + "\",";
-                                }
-                                else if (item.Type == JTokenType.Integer || item.Type == JTokenType.Float)
-                                {
-                                    s += item.ToString() + ",";
-                                }
-                            }
-                            s += "}";
-                            row_data += s;
+                            row_data += JsonObjectToLuaStr(jsonObj);
                         }
                         else
                         {
-                            var obj = (JObject)jsonObj;
-                            if (obj != null)
-                            {
-                                row_data += JsonObjectToLuaStr(obj);
-                            }
-                            else
-                            {
-                                row_data += Define.DefaultTable;
-                            }
+                            row_data += Define.DefaultTable;
                         }
                     }
                     else
@@ -255,38 +235,75 @@ namespace ExcelExporter.lua
             return row_data;
         }
 
-        string JsonObjectToLuaStr(JObject obj)
+        string JsonObjectToLuaStr(object obj)
         {
-            string s = "{";
-            foreach (var kv in obj)
+            if (obj is JArray)
             {
-                if (kv.Value.Type == JTokenType.Object)
+                string s = "{";
+                foreach (var item in (JArray)obj)
                 {
-                    var sub_obj = (JObject)kv.Value;
-                    s += JsonObjectToLuaStr(sub_obj);
+                    if (item.Type == JTokenType.Object
+                        || item.Type == JTokenType.Array)
+                    {
+                        s += JsonObjectToLuaStr(item);
+                    }
+                    else if (item.Type == JTokenType.String)
+                    {
+                        s += "\"" + item.ToString() + "\",";
+                    }
+                    else if (item.Type == JTokenType.Integer || item.Type == JTokenType.Float)
+                    {
+                        s += item.ToString() + ",";
+                    }
                 }
-                else // TODO 处理更完整的对象类型
-                {
-                    s += kv.Value.ToString() + ",";
-                }
+                s += "}";
+                return s;
             }
-            s += "}";
-            return s;
+            else
+            {
+                string s = "{";
+                foreach (var kv in (JObject)obj)
+                {
+                    if (kv.Value.Type == JTokenType.Object
+                        || kv.Value.Type == JTokenType.Array)
+                    {
+                        s += JsonObjectToLuaStr(kv.Value);
+                    }
+                    else // TODO 处理更完整的对象类型
+                    {
+                        s += kv.Value.ToString() + ",";
+                    }
+                }
+                s += "}";
+                return s;
+            }
         }
 
         // 解析sheet时同时解析并存储sheet的fields数据
         // @clientFields: ##client 行数据
         // @desc: 表首行数据
-        void ProcessSheetFields(string sheetName, IRow clientFields, IRow desc)
+        void ProcessSheetFields(string sheetName, IRow clientFields, IRow desc, IRow dataType)
         {
             string fieldsStr = @"";
             for (int i = Define.StartColumIndex; i < ColumCltField.Count; i++)
             {
                 ICell cell = clientFields.GetCell(i);
-                if (cell != null && cell.CellType == CellType.String && cell.StringCellValue != string.Empty)
+                ICell cellDataType = dataType.GetCell(i);
+                if (cellDataType.StringCellValue == "json")
                 {
-                    // 格式：field = i, -- desc\r\n
-                    fieldsStr += "        " + cell.StringCellValue + " = " + i + ", -- " + desc.GetCell(i).ToString() + "\r\n";
+                    if (cell != null && cell.CellType == CellType.String && cell.StringCellValue != string.Empty)
+                    {
+                        // 格式：field = i, -- desc\r\n
+                        fieldsStr += "        " + cell.StringCellValue + " = " + i + ", -- " + desc.GetCell(i).ToString() + "\r\n";
+                    }
+                }
+                else
+                {
+                    if (cell != null && cell.CellType == CellType.String && cell.StringCellValue != string.Empty)
+                    {
+                        // 格式：field = i, -- desc\r\n
+                        fieldsStr += "        " + cell.StringCellValue + " = " + i + ", -- " + desc.GetCell(i).ToString() + "\r\n";
+                    }
                 }
             }
 
