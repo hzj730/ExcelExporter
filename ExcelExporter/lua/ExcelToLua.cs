@@ -13,6 +13,47 @@ namespace ExcelExporter.lua
 {
     public class ExcelToLua
     {
+        // 解析目录下所有的excel文件
+        public void PackageDirectory()
+        {
+            ClearGlobalData();
+
+            var xlsFiles = Directory.GetFiles(Define.ExcelPath, "*.xlsx");
+
+            foreach (var file in xlsFiles)
+            {
+                if (!file.Contains("~$"))
+                {
+                    AnalysisExcelFile(file);
+                }
+            }
+        }
+
+        List<string> ColumDesc = new List<string>();    // 第一行 列描述
+        List<string> ColumType = new List<string>();    // 第二行 列类型 int string json等
+        List<string> ColumSrvField = new List<string>();// 第三行 服务器导出字段
+        List<string> ColumCltField = new List<string>();// 第四行 客户端导出字段
+        List<string> ColumFint = new List<string>();    // 第五行描述，做表无需处理
+        string table_data = string.Empty;   // 记录数据表内容，一行对应一条字符串
+
+        List<string> TableFieldDefines = new List<string>();
+        Dictionary<string, string> TableFieldMap = new Dictionary<string, string>();    // k: sheetName v: fields define lua string
+
+        void ClearSheetData()
+        {
+            ColumDesc.Clear();
+            ColumType.Clear();
+            ColumSrvField.Clear();
+            ColumCltField.Clear();
+            ColumFint.Clear();
+            table_data = string.Empty;
+        }
+
+        void ClearGlobalData()
+        {
+            TableFieldDefines.Clear();
+            TableFieldMap.Clear();
+        }
 
         // 解析单个文件
         public bool AnalysisExcelFile(string fileName)
@@ -34,6 +75,7 @@ namespace ExcelExporter.lua
                     {
                         sheet = workbook.GetSheetAt(i);
 
+                        ClearSheetData();
                         ProcessSheet(sheet);
                     }
                 }
@@ -51,22 +93,8 @@ namespace ExcelExporter.lua
             return ret;
         }
 
-        List<string> ColumDesc = new List<string>();    // 第一行 列描述
-        List<string> ColumType = new List<string>();    // 第二行 列类型 int string json等
-        List<string> ColumSrvField = new List<string>();// 第三行 服务器导出字段
-        List<string> ColumCltField = new List<string>();// 第四行 客户端导出字段
-        List<string> ColumFint = new List<string>();    // 第五行描述，做表无需处理
-        string table_data = string.Empty;   // 记录数据表内容，一行对应一条字符串
-
         private void ProcessSheet(ISheet sheet)
         {
-            // rest 
-            ColumDesc.Clear();
-            ColumType.Clear();
-            ColumSrvField.Clear();
-            ColumCltField.Clear();
-            ColumFint.Clear();
-
             int TotalRowCount = sheet.LastRowNum;
             if (TotalRowCount < 5)
             {
@@ -119,6 +147,8 @@ namespace ExcelExporter.lua
                 clt_colums_count++;
                 ColumCltField.Add(cell.ToString());
             }
+
+            ProcessSheetFields(sheet.SheetName, row4, row1);
 
             for (int row = Define.StartRowIndex; row <= TotalRowCount; row++)
             {
@@ -244,6 +274,27 @@ namespace ExcelExporter.lua
             return s;
         }
 
+        // 解析sheet时同时解析并存储sheet的fields数据
+        // @clientFields: ##client 行数据
+        // @desc: 表首行数据
+        void ProcessSheetFields(string sheetName, IRow clientFields, IRow desc)
+        {
+            string fieldsStr = @"";
+            for (int i = Define.StartColumIndex; i < ColumCltField.Count; i++)
+            {
+                ICell cell = clientFields.GetCell(i);
+                if (cell != null && cell.CellType == CellType.String && cell.StringCellValue != string.Empty)
+                {
+                    // 格式：field = i, -- desc\r\n
+                    fieldsStr += "        " + cell.StringCellValue + " = " + i + ", -- " + desc.GetCell(i).ToString() + "\r\n";
+                }
+            }
+
+            string data = string.Format(Define.SINGLE_TABLE_FIELD_TEMPLATE,
+                        sheetName, fieldsStr, sheetName + ".lua");
+            TableFieldMap.Add(sheetName, data);
+        }
+
         private void WriteLuaFile(string content, string fileName)
         {
             if (!Directory.Exists(Define.OutputLuaPath))
@@ -258,7 +309,15 @@ namespace ExcelExporter.lua
 
         public void genTableFieldLua()
         {
-            WriteLuaFile(Define.TABLE_FIELD_TEMP, "TableFieldDef.lua");
+            string fieldsStr = string.Empty;
+            foreach (var k in TableFieldMap.Keys)
+            {
+                string str = TableFieldMap[k];
+                fieldsStr += str;
+            }
+            // Define.TABLE_FIELD_TEMPLATE 应该包含了多个 SINGLE_TABLE_FIELD_TEMPLATE
+            string data = string.Format(Define.TABLE_FIELD_TEMPLATE, fieldsStr);
+            WriteLuaFile(data, "TableFieldDef.lua");
         }
     }
 }

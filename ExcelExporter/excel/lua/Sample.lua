@@ -6,6 +6,5 @@ local t =
 {1004,"名称1004",513,2004,{{101,200,}{102,300,}{103,403,}},"image/icon4",{101,203,},TableField.DefaultNum,TableField.DefaultStr,},
 {TableField.DefaultNum,"名称1005",514,2005,{{101,200,}{102,300,}{103,404,}},"image/icon5",{101,204,},TableField.DefaultNum,"desc5",},
 {1006,"名称1006",515,2006,{{101,200,}{102,300,}{103,405,}},"image/icon6",{101,205,},TableField.DefaultNum,"desc6",},
-
 }
 _G.TableData.Sample = t
