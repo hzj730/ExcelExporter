@@ -13,12 +13,16 @@ namespace ExcelExporter.lua
 {
     public class ExcelToLua
     {
+        string DirExcel = "";
         // 解析目录下所有的excel文件
-        public void PackageDirectory()
+        public void PackageDirectory(string relativePath = "")
         {
             ClearGlobalData();
 
-            var xlsFiles = Directory.GetFiles(Define.ExcelPath, "*.xlsx");
+            string rootPath = Directory.GetCurrentDirectory();
+            string dir = relativePath != string.Empty ? rootPath + relativePath : rootPath + "\\..\\excel\\";
+            DirExcel = dir;
+            var xlsFiles = Directory.GetFiles(dir, "*.xlsx");
 
             foreach (var file in xlsFiles)
             {
@@ -156,6 +160,8 @@ namespace ExcelExporter.lua
 
             ProcessSheetFields(sheet.SheetName, row4, row1, row2);
 
+            SheetIds.Clear();
+
             for (int row = Define.StartRowIndex; row <= TotalRowCount; row++)
             {
                 IRow rowData = sheet.GetRow(row);
@@ -180,6 +186,7 @@ namespace ExcelExporter.lua
             WriteLuaFile(content, sheet.SheetName + ".lua");
         }
 
+        List<string> SheetIds = new List<string>();
         // rowIndex 1-5 文件头
         private string ProcessRow(int rowIndex, IRow row)
         {
@@ -194,13 +201,29 @@ namespace ExcelExporter.lua
                 string type = ColumType[i];
                 ICell cell = row.GetCell(i);
 
-                if (type == "int")
+                if (i == 1) // Key列做一些规则和格式检查
+                {
+                    if (cell == null || cell.ToString() == string.Empty)
+                    {
+                        throw new ArgumentException(string.Format("ID不能填空 rowIndex: {0}", rowIndex + 1), "CellType");
+                    }
+                    string cell_id = cell.ToString();
+                    if (SheetIds.Contains(cell_id))
+                    {
+                        throw new ArgumentException(string.Format("ID重复 rowIndex: {0}", rowIndex + 1), "CellType");
+                    }
+                    SheetIds.Add(cell_id);
+                }
+
+                if (type == "int" || type == "number" || type == "num")
                 {
                     row_data += (cell != null) ? cell.NumericCellValue.ToString() : Define.DefaultNum;// Utils.GetCellValue(row.GetCell(i)); //
+                    row_data += ",";
                 }
-                else if (type == "string")
+                else if (type == "string" || type == "str")
                 {
                     row_data += (cell != null) ? "\"" + cell.StringCellValue + "\"" : Define.DefaultStr;
+                    row_data += ",";
                 }
                 else if (type == "json")
                 {
@@ -227,7 +250,6 @@ namespace ExcelExporter.lua
                 {
                     throw new ArgumentException("Cell Type Unknow", "CellType");
                 }
-                row_data += ",";
             }
 
             row_data += "},\n";
@@ -256,7 +278,7 @@ namespace ExcelExporter.lua
                         s += item.ToString() + ",";
                     }
                 }
-                s += "}";
+                s += "},";
                 return s;
             }
             else
@@ -274,7 +296,7 @@ namespace ExcelExporter.lua
                         s += kv.Value.ToString() + ",";
                     }
                 }
-                s += "}";
+                s += "},";
                 return s;
             }
         }
@@ -314,11 +336,12 @@ namespace ExcelExporter.lua
 
         private void WriteLuaFile(string content, string fileName)
         {
-            if (!Directory.Exists(Define.OutputLuaPath))
+            string luaPath = DirExcel + "/lua/";
+            if (!Directory.Exists(luaPath))
             {
-                Directory.CreateDirectory(Define.OutputLuaPath);
+                Directory.CreateDirectory(luaPath);
             }
-            using (StreamWriter file = new StreamWriter(Define.OutputLuaPath + fileName))
+            using (StreamWriter file = new StreamWriter(luaPath + fileName))
             {
                 file.Write(content);
             }

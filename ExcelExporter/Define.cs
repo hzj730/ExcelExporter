@@ -19,17 +19,15 @@ namespace ExcelExporter
         // lua 结构字段定义导出模版
         public static string TABLE_FIELD_TEMPLATE =
 @"-- 该文件自动生成，请不要随修改
-local fields = {{}}
-fields.DefaultNum = 0
-fields.DefaultStr = """"
-fields.DefaultTable = {{}}
+_G.TableDefaultNum = 0
+_G.TableDefaultStr = """"
+_G.TableDefaultTable = {{}}
 
 -- 所有lua表的字段定义
-fields.TableDefine = {{
+_G.TableDefine = {{
 {0}}}
 
-_G.TableField = fields
-return _G.TableField
+return _G.TableDefine
 ";
 
         // 单个表字段申明模版，配合TABLE_FIELD_TEMPLATE使用
@@ -42,9 +40,9 @@ return _G.TableField
 ";
 
         // 转出Lua时替换一些统一值，节约内存
-        public static readonly string DefaultNum = "TableField.DefaultNum";
-        public static readonly string DefaultStr = "TableField.DefaultStr";
-        public static readonly string DefaultTable = "TableField.DefaultTable";
+        public static readonly string DefaultNum = "TableDefaultNum";
+        public static readonly string DefaultStr = "TableDefaultStr";
+        public static readonly string DefaultTable = "TableDefaultTable";
 
         public static string TABLE_DATA_TEMP =
 @"-- 该文件自动生成，请不要随修改

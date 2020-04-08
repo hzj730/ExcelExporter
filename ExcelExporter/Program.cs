@@ -20,12 +20,14 @@ namespace ExcelExporter
                 Console.WriteLine(args[i]);
             }
 
+            string dir = (args.Length > 1 && args[1] != null) ? args[1] : string.Empty;
+
             if (args.Length == 0 || args[0] == "lua")
             {
                 try
                 {
                     ExcelToLua excelToLua = new ExcelToLua();
-                    excelToLua.PackageDirectory();
+                    excelToLua.PackageDirectory(dir);
 
                     excelToLua.genTableFieldLua();
                 }
