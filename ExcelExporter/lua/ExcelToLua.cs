@@ -8,6 +8,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ExcelExporter.lua
 {
@@ -20,7 +22,7 @@ namespace ExcelExporter.lua
             ClearGlobalData();
 
             string rootPath = Directory.GetCurrentDirectory();
-            string dir = relativePath != string.Empty ? rootPath + relativePath : rootPath + "\\..\\excel\\";
+            string dir = relativePath != string.Empty ? rootPath + relativePath : rootPath + "\\..\\table_xlsx\\";
             DirExcel = dir;
             var xlsFiles = Directory.GetFiles(dir, "*.xlsx");
 
@@ -74,13 +76,15 @@ namespace ExcelExporter.lua
                 using (FileStream file = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
                     workbook = new XSSFWorkbook(file);
+                    string exls_file_name = Path.GetFileName(fileName);
+                    string exls_file_name_wihtout_suffix = exls_file_name.Split('.')[0];
                     int sheetCount = workbook.NumberOfSheets;
                     for (int i = 0; i < sheetCount; i++)
                     {
                         sheet = workbook.GetSheetAt(i);
 
                         ClearSheetData();
-                        ProcessSheet(sheet);
+                        ProcessSheet(exls_file_name_wihtout_suffix, sheet);
                     }
                 }
 
@@ -97,7 +101,7 @@ namespace ExcelExporter.lua
             return ret;
         }
 
-        private void ProcessSheet(ISheet sheet)
+        private void ProcessSheet(string exls_name, ISheet sheet)
         {
             // 第一行 记录列数 记录列描述
             IRow row1 = sheet.GetRow(0);
@@ -158,7 +162,7 @@ namespace ExcelExporter.lua
                 ColumCltField.Add(cell.ToString());
             }
 
-            ProcessSheetFields(sheet.SheetName, row4, row1, row2);
+            ProcessSheetFields(exls_name, sheet.SheetName, row4, row1, row2);
 
             SheetIds.Clear();
 
@@ -180,10 +184,11 @@ namespace ExcelExporter.lua
                 }
             }
 
-            string content = string.Format(Define.TABLE_DATA_TEMP, table_data, sheet.SheetName);
+            string table_name = exls_name + "_" + sheet.SheetName;
+            string content = string.Format(Define.TABLE_DATA_TEMP, table_data, table_name);
             //Console.WriteLine(content);
 
-            WriteLuaFile(content, sheet.SheetName + ".lua");
+            WriteLuaFile(content, table_name + ".lua");
         }
 
         List<string> SheetIds = new List<string>();
@@ -222,14 +227,46 @@ namespace ExcelExporter.lua
                 }
                 else if (type == "string" || type == "str")
                 {
-                    row_data += (cell != null) ? "\"" + cell.StringCellValue + "\"" : Define.DefaultStr;
-                    row_data += ",";
+                    try
+                    {
+                        if (cell != null)
+                        {
+                            cell.SetCellType(CellType.String);
+                            string content = cell.StringCellValue;
+
+                            content = content.Replace("\n", "");
+                            content = content.Replace("\r", "");
+                            StringBuilder sb = new StringBuilder();
+                            foreach (char ch in content)
+                            {
+                                if (ch == '\"' || ch == '\\')
+                                {
+                                    sb.Append('\\');
+                                }
+                                sb.Append(ch);
+                            }
+                            content = sb.ToString();
+
+                            row_data += "\"" + content + "\"";
+                        }
+                        else
+                        {
+                            row_data += Define.DefaultStr;
+                        }
+                        row_data += ",";
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Error.WriteLine("StringCellValue Exception: " + e.ToString() + " --- colum:" + i.ToString() + " --- row: " + rowIndex.ToString());
+                    }
                 }
                 else if (type == "json")
                 {
                     if (cell != null)
                     {
                         string json = cell.StringCellValue;
+                        json = json.Replace("\n", "");
+                        json = json.Replace("\r", "");
                         var jsonObj = JsonConvert.DeserializeObject(json);
                         //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
                         if (jsonObj != null)
@@ -238,7 +275,7 @@ namespace ExcelExporter.lua
                         }
                         else
                         {
-                            row_data += Define.DefaultTable;
+                            row_data += Define.DefaultTable + ",";
                         }
                     }
                     else
@@ -291,6 +328,10 @@ namespace ExcelExporter.lua
                     {
                         s += JsonObjectToLuaStr(kv.Value);
                     }
+                    else if (kv.Value.Type == JTokenType.String)
+                    {
+                        s += "\"" + kv.Value.ToString() + "\",";
+                    }
                     else // TODO 处理更完整的对象类型
                     {
                         s += kv.Value.ToString() + ",";
@@ -304,7 +345,7 @@ namespace ExcelExporter.lua
         // 解析sheet时同时解析并存储sheet的fields数据
         // @clientFields: ##client 行数据
         // @desc: 表首行数据
-        void ProcessSheetFields(string sheetName, IRow clientFields, IRow desc, IRow dataType)
+        void ProcessSheetFields(string excelName, string sheetName, IRow clientFields, IRow desc, IRow dataType)
         {
             string fieldsStr = @"";
             for (int i = Define.StartColumIndex; i < ColumCltField.Count; i++)
@@ -329,9 +370,17 @@ namespace ExcelExporter.lua
                 }
             }
 
+            string table_name = excelName + "_" + sheetName;
             string data = string.Format(Define.SINGLE_TABLE_FIELD_TEMPLATE,
-                        sheetName, fieldsStr, sheetName + ".lua");
-            TableFieldMap.Add(sheetName, data);
+                        table_name, fieldsStr, table_name + ".lua");
+            if (TableFieldMap.ContainsKey(table_name))
+            {
+                throw new Exception(string.Format("sheet name {0} has existed.", table_name));
+            }
+            else
+            {
+                TableFieldMap.Add(table_name, data);
+            }
         }
 
         private void WriteLuaFile(string content, string fileName)
