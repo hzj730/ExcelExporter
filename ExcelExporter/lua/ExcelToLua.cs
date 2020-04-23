@@ -35,10 +35,10 @@ namespace ExcelExporter.lua
             }
         }
 
-        List<string> ColumDesc = new List<string>();    // 第一行 列描述
-        List<string> ColumType = new List<string>();    // 第二行 列类型 int string json等
+        Dictionary<int, string> ColumDescMap = new Dictionary<int, string>();    // 第一行 列描述
+        Dictionary<int, string> ColumTypeMap = new Dictionary<int, string>();    // 第二行 列类型 int string json等
         List<string> ColumSrvField = new List<string>();// 第三行 服务器导出字段
-        List<string> ColumCltField = new List<string>();// 第四行 客户端导出字段
+        Dictionary<int, string> ColumCltFieldMap = new Dictionary<int, string>(); // 第四行 客户端导出字段 k: colum id    v: cell string
         List<string> ColumFint = new List<string>();    // 第五行描述，做表无需处理
         string table_data = string.Empty;   // 记录数据表内容，一行对应一条字符串
 
@@ -47,10 +47,10 @@ namespace ExcelExporter.lua
 
         void ClearSheetData()
         {
-            ColumDesc.Clear();
-            ColumType.Clear();
+            ColumDescMap.Clear();
+            ColumTypeMap.Clear();
             ColumSrvField.Clear();
-            ColumCltField.Clear();
+            ColumCltFieldMap.Clear();
             ColumFint.Clear();
             table_data = string.Empty;
         }
@@ -115,8 +115,9 @@ namespace ExcelExporter.lua
             {
                 if (cell == null || cell.CellType == CellType.Blank)
                 {
-                    break;
+                    continue;
                 }
+                ColumDescMap.Add(cell.Address.Column, cell.ToString());
                 colums++;
             }
 
@@ -133,10 +134,11 @@ namespace ExcelExporter.lua
             {
                 if (cell == null || cell.CellType == CellType.Blank)
                 {
-                    break;
+                    continue;
                 }
                 type_colums_count++;
-                ColumType.Add(cell.ToString());
+//                ColumType.Add(cell.ToString());
+                ColumTypeMap.Add(cell.Address.Column, cell.ToString());
             }
 
             IRow row3 = sheet.GetRow(2);
@@ -145,7 +147,7 @@ namespace ExcelExporter.lua
             {
                 if (cell == null || cell.CellType == CellType.Blank)
                 {
-                    break;
+                    continue;
                 }
                 srv_colums_count++;
             }
@@ -156,10 +158,11 @@ namespace ExcelExporter.lua
             {
                 if (cell == null || cell.CellType == CellType.Blank)
                 {
-                    break;
+                    continue;
                 }
                 clt_colums_count++;
-                ColumCltField.Add(cell.ToString());
+//                ColumCltField.Add(cell.ToString());
+                ColumCltFieldMap.Add(cell.Address.Column, cell.ToString());
             }
 
             ProcessSheetFields(exls_name, sheet.SheetName, row4, row1, row2);
@@ -200,13 +203,28 @@ namespace ExcelExporter.lua
 
             row_data += "{";
             // 第一列默认忽略
-            for (int i = Define.StartColumIndex; i < ColumCltField.Count; i++)
+            foreach (KeyValuePair<int, string> kv in ColumCltFieldMap)
             {
+                int field_colum_id = kv.Key;
+                if (field_colum_id < Define.StartColumIndex)
+                {
+                    continue;
+                }
+                if (!ColumDescMap.ContainsKey(field_colum_id))
+                {
+                    // 后续列都认为无效
+                    break;
+                }
                 // 根据类型区分处理
-                string type = ColumType[i];
-                ICell cell = row.GetCell(i);
+                string type = string.Empty;
+                if (!ColumTypeMap.TryGetValue(field_colum_id, out type))
+                {
+                    Console.Error.WriteLine(string.Format("ColumTypeMap TryGetValue exception row: {0} colum: {1}", rowIndex, field_colum_id));
+                    continue;
+                }
+                ICell cell = row.GetCell(field_colum_id);
 
-                if (i == 1) // Key列做一些规则和格式检查
+                if (field_colum_id == 1) // Key列做一些规则和格式检查
                 {
                     if (cell == null || cell.ToString() == string.Empty)
                     {
@@ -257,7 +275,7 @@ namespace ExcelExporter.lua
                     }
                     catch (Exception e)
                     {
-                        Console.Error.WriteLine("StringCellValue Exception: " + e.ToString() + " --- colum:" + i.ToString() + " --- row: " + rowIndex.ToString());
+                        Console.Error.WriteLine("StringCellValue Exception: " + e.ToString() + " --- colum:" + field_colum_id.ToString() + " --- row: " + rowIndex.ToString());
                     }
                 }
                 else if (type == "json")
@@ -348,16 +366,27 @@ namespace ExcelExporter.lua
         void ProcessSheetFields(string excelName, string sheetName, IRow clientFields, IRow desc, IRow dataType)
         {
             string fieldsStr = @"";
-            for (int i = Define.StartColumIndex; i < ColumCltField.Count; i++)
+            int lua_start_index = 1;
+            foreach (KeyValuePair<int, string> kv in ColumCltFieldMap)
             {
-                ICell cell = clientFields.GetCell(i);
-                ICell cellDataType = dataType.GetCell(i);
+                int colum_index = kv.Key;
+                if (colum_index < Define.StartColumIndex)
+                {
+                    continue;
+                }
+                if (!ColumDescMap.ContainsKey(colum_index))
+                {
+                    // 后续列都认为无效
+                    break;
+                }
+                ICell cell = clientFields.GetCell(colum_index);
+                ICell cellDataType = dataType.GetCell(colum_index);
                 if (cellDataType.StringCellValue == "json")
                 {
                     if (cell != null && cell.CellType == CellType.String && cell.StringCellValue != string.Empty)
                     {
                         // 格式：field = i, -- desc\r\n
-                        fieldsStr += "        " + cell.StringCellValue + " = " + i + ", -- " + desc.GetCell(i).ToString() + "\r\n";
+                        fieldsStr += "        " + cell.StringCellValue + " = " + lua_start_index + ", -- " + desc.GetCell(colum_index).ToString() + "\r\n";
                     }
                 }
                 else
@@ -365,9 +394,11 @@ namespace ExcelExporter.lua
                     if (cell != null && cell.CellType == CellType.String && cell.StringCellValue != string.Empty)
                     {
                         // 格式：field = i, -- desc\r\n
-                        fieldsStr += "        " + cell.StringCellValue + " = " + i + ", -- " + desc.GetCell(i).ToString() + "\r\n";
+                        fieldsStr += "        " + cell.StringCellValue + " = " + lua_start_index + ", -- " + desc.GetCell(colum_index).ToString() + "\r\n";
                     }
                 }
+
+                lua_start_index++;
             }
 
             string table_name = excelName + "_" + sheetName;
