@@ -106,7 +106,10 @@ namespace ExcelExporter.lua
             // 第一行 记录列数 记录列描述
             IRow row1 = sheet.GetRow(0);
             // 第一个单元格不是array字段，该表不需要导出
-            if (row1 == null || row1.GetCell(0) == null || row1.GetCell(0).StringCellValue != "array")
+            if (row1 == null)
+                return;
+            var cell011 = row1.GetCell(0);
+            if (cell011 == null || cell011.StringCellValue != "array")
             {
                 return;
             }
@@ -238,7 +241,7 @@ namespace ExcelExporter.lua
                     SheetIds.Add(cell_id);
                 }
 
-                if (type == "int" || type == "number" || type == "num")
+                if (type == "int" || type == "number" || type == "num" || type == "float")
                 {
                     row_data += (cell != null) ? cell.NumericCellValue.ToString() : Define.DefaultNum;// Utils.GetCellValue(row.GetCell(i)); //
                     row_data += ",";
@@ -298,7 +301,7 @@ namespace ExcelExporter.lua
                     }
                     else
                     {
-
+                        row_data += Define.DefaultTable + ",";
                     }
                 }
                 else
