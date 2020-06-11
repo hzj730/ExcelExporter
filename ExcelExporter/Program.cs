@@ -45,7 +45,7 @@ namespace ExcelExporter
                 Console.WriteLine("参数错误");
             }
 
-            Console.ReadKey();
+            //Console.ReadKey();
         }
     }
 }
