@@ -301,10 +301,10 @@ namespace ExcelExporter.lua
                     {
                         try
                         {
-                            DataFormatter formatter = new DataFormatter(); //creating formatter using the default locale
-                            string json = formatter.FormatCellValue(cell); //Returns the formatted value of a cell as a String regardless of the cell type.
+                            //DataFormatter formatter = new DataFormatter(); //creating formatter using the default locale
+                            //string json = formatter.FormatCellValue(cell); //Returns the formatted value of a cell as a String regardless of the cell type.
 
-                            //string json = cell.StringCellValue;
+                            string json = cell.StringCellValue;
                             json = json.Replace("\n", "");
                             json = json.Replace("\r", "");
                             var jsonObj = JsonConvert.DeserializeObject(json);
