@@ -16,6 +16,9 @@ namespace ExcelExporter.lua
     public class ExcelToLua
     {
         string DirExcel = "";
+        string ExcelFileName = "";
+        string ExcelSheetName = "";
+
         // 解析目录下所有的excel文件
         public void PackageDirectory(string relativePath = "")
         {
@@ -101,8 +104,17 @@ namespace ExcelExporter.lua
             return ret;
         }
 
+        string FormatErrorMsg(string msg, int rowIndex, int colIndex)
+        {
+            return string.Format("Excel: {0} Sheet: {1} Row: {2} Colum: {3}, Error: {4}",
+                ExcelFileName, ExcelSheetName, rowIndex.ToString(), colIndex.ToString(), msg);
+        }
+
         private void ProcessSheet(string exls_name, ISheet sheet)
         {
+            ExcelFileName = exls_name;
+            ExcelSheetName = sheet.SheetName;
+
             // 第一行 记录列数 记录列描述
             IRow row1 = sheet.GetRow(0);
             // 第一个单元格不是array字段，该表不需要导出
@@ -231,12 +243,14 @@ namespace ExcelExporter.lua
                 {
                     if (cell == null || cell.ToString() == string.Empty)
                     {
-                        throw new ArgumentException(string.Format("ID不能填空 rowIndex: {0}", rowIndex + 1), "CellType");
+                        string message = FormatErrorMsg("ID不能填空", rowIndex + 1, field_colum_id);
+                        throw new ArgumentException(message, "CellType");
                     }
                     string cell_id = cell.ToString();
                     if (SheetIds.Contains(cell_id))
                     {
-                        throw new ArgumentException(string.Format("ID重复 rowIndex: {0}", rowIndex + 1), "CellType");
+                        string message = FormatErrorMsg("ID重复", rowIndex + 1, field_colum_id);
+                        throw new ArgumentException(message, "CellType");
                     }
                     SheetIds.Add(cell_id);
                 }
@@ -285,18 +299,29 @@ namespace ExcelExporter.lua
                 {
                     if (cell != null)
                     {
-                        string json = cell.StringCellValue;
-                        json = json.Replace("\n", "");
-                        json = json.Replace("\r", "");
-                        var jsonObj = JsonConvert.DeserializeObject(json);
-                        //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
-                        if (jsonObj != null)
+                        try
                         {
-                            row_data += JsonObjectToLuaStr(jsonObj);
+                            DataFormatter formatter = new DataFormatter(); //creating formatter using the default locale
+                            string json = formatter.FormatCellValue(cell); //Returns the formatted value of a cell as a String regardless of the cell type.
+
+                            //string json = cell.StringCellValue;
+                            json = json.Replace("\n", "");
+                            json = json.Replace("\r", "");
+                            var jsonObj = JsonConvert.DeserializeObject(json);
+                            //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
+                            if (jsonObj != null)
+                            {
+                                row_data += JsonObjectToLuaStr(jsonObj);
+                            }
+                            else
+                            {
+                                row_data += Define.DefaultTable + ",";
+                            }
                         }
-                        else
+                        catch (Exception e)
                         {
-                            row_data += Define.DefaultTable + ",";
+                            string message = FormatErrorMsg("解析Json异常", rowIndex + 1, field_colum_id);
+                            throw new ArgumentException(message, cell.CellType.ToString());
                         }
                     }
                     else
