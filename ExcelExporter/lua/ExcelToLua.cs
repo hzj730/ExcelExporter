@@ -197,6 +197,12 @@ namespace ExcelExporter.lua
                     }
                     else
                     {
+                        if (exls_name.Equals("characters_red") && sheet.SheetName.Equals("skill"))
+                        {
+                            CheckCharacterRowJsonConfig(row1, rowData, 6, 9); // effect_id, hit_data
+                            CheckCharacterRowJsonConfig(row1, rowData, 6, 10); // effect_id, hit_time
+                            CheckCharacterRowJsonConfig(row1, rowData, 6, 5); // effect_id, target_relation
+                        }
                         table_data += ProcessRow(row, rowData);
                     }
                 }
@@ -318,7 +324,7 @@ namespace ExcelExporter.lua
                                 row_data += Define.DefaultTable + ",";
                             }
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
                             string message = FormatErrorMsg("解析Json异常", rowIndex + 1, field_colum_id);
                             throw new ArgumentException(message, cell.CellType.ToString());
@@ -466,6 +472,48 @@ namespace ExcelExporter.lua
             // Define.TABLE_FIELD_TEMPLATE 应该包含了多个 SINGLE_TABLE_FIELD_TEMPLATE
             string data = string.Format(Define.TABLE_FIELD_TEMPLATE, fieldsStr);
             WriteLuaFile(data, "TableFieldDef.lua");
+        }
+
+        // 检测角色配置表的一行中具体某几列的json数组长度一致性
+        void CheckCharacterRowJsonConfig(IRow head, IRow row, int accord, int check)
+        {
+            int accordArrLen = 0;
+            int checkArrLen = 0;
+            ICell cell0 = row.GetCell(accord);
+            try
+            {
+                string json = cell0.StringCellValue;
+                json = json.Replace("\n", "");
+                json = json.Replace("\r", "");
+                var jsonObj = JsonConvert.DeserializeObject(json);
+                accordArrLen = (jsonObj as JArray).Count;
+            }
+            catch (Exception)
+            {
+                throw new Exception(string.Format("Json 格式错误 accord {0}", accord));
+            }
+
+            ICell cell1 = row.GetCell(check);
+            try
+            {
+                string json = cell1.StringCellValue;
+                json = json.Replace("\n", "");
+                json = json.Replace("\r", "");
+                var jsonObj = JsonConvert.DeserializeObject(json);
+                checkArrLen = (jsonObj as JArray).Count;
+            }
+            catch (Exception)
+            {
+                throw new Exception(string.Format("Json 格式错误 check {0}", check));
+            }
+
+            if (accordArrLen > 0 && accordArrLen != checkArrLen)
+            {
+                ICell cellHead0 = head.GetCell(accord);
+                ICell cellHead1 = head.GetCell(check);
+                ICell cellId = row.GetCell(1);
+                throw new Exception(string.Format("Json 格式错误 数组长度不一致 技能ID: {0} {1} --- {2}", cellId.NumericCellValue, cellHead0.StringCellValue, cellHead1.StringCellValue));
+            }
         }
     }
 }
