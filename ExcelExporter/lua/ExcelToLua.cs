@@ -362,6 +362,10 @@ namespace ExcelExporter.lua
                     {
                         s += "\"" + item.ToString() + "\",";
                     }
+                    else if (item.Type == JTokenType.Boolean)
+                    {
+                        s += item.ToString().ToLower() + ",";
+                    }
                     else if (item.Type == JTokenType.Integer || item.Type == JTokenType.Float)
                     {
                         s += item.ToString() + ",";
@@ -383,6 +387,10 @@ namespace ExcelExporter.lua
                     else if (kv.Value.Type == JTokenType.String)
                     {
                         s += "\"" + kv.Value.ToString() + "\",";
+                    }
+                    else if (kv.Value.Type == JTokenType.Boolean)
+                    {
+                        s += kv.Value.ToString().ToLower() + ",";
                     }
                     else // TODO 处理更完整的对象类型
                     {
@@ -477,6 +485,10 @@ namespace ExcelExporter.lua
         // 检测角色配置表的一行中具体某几列的json数组长度一致性
         void CheckCharacterRowJsonConfig(IRow head, IRow row, int accord, int check)
         {
+            ICell cellHead0 = head.GetCell(accord);
+            ICell cellHead1 = head.GetCell(check);
+            ICell cellId = row.GetCell(1);
+
             int accordArrLen = 0;
             int checkArrLen = 0;
             ICell cell0 = row.GetCell(accord);
@@ -490,7 +502,7 @@ namespace ExcelExporter.lua
             }
             catch (Exception)
             {
-                throw new Exception(string.Format("Json 格式错误 accord {0}", accord));
+                throw new Exception(string.Format("Json 格式错误 技能ID: {0} 出错列：{1}", cellId.NumericCellValue, cellHead0.StringCellValue));
             }
 
             ICell cell1 = row.GetCell(check);
@@ -504,14 +516,11 @@ namespace ExcelExporter.lua
             }
             catch (Exception)
             {
-                throw new Exception(string.Format("Json 格式错误 check {0}", check));
+                throw new Exception(string.Format("Json 格式错误 技能ID: {0} 出错列：{1}", cellId.NumericCellValue, cellHead1.StringCellValue));
             }
 
             if (accordArrLen > 0 && accordArrLen != checkArrLen)
             {
-                ICell cellHead0 = head.GetCell(accord);
-                ICell cellHead1 = head.GetCell(check);
-                ICell cellId = row.GetCell(1);
                 throw new Exception(string.Format("Json 格式错误 数组长度不一致 技能ID: {0} {1} --- {2}", cellId.NumericCellValue, cellHead0.StringCellValue, cellHead1.StringCellValue));
             }
         }
