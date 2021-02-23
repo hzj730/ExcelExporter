@@ -1,27 +1,26 @@
-﻿using ExcelExporter.common;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
+using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
-namespace ExcelExporter.lua
+namespace ExcelExporter.json
 {
-    public class ExcelToLua
+    public class ExcelToJson
     {
         string DirExcel { get; set; } = "";
         string ExcelFileName { get; set; } = "";
         string ExcelSheetName { get; set; } = "";
+        string ExportPlatform { get; set; } = "client";
 
         // 解析目录下所有的excel文件
-        public void PackageDirectory(string relativePath = "")
+        public void PackageDirectory(string exportPlat, string relativePath = "")
         {
+            ExportPlatform = exportPlat;
             ClearGlobalData();
 
             string rootPath = Directory.GetCurrentDirectory();
@@ -36,6 +35,17 @@ namespace ExcelExporter.lua
                     AnalysisExcelFile(file);
                 }
             }
+        }
+
+        public void PackageFile(string exportPlat, string fileName)
+        {
+            DirExcel = Directory.GetCurrentDirectory() + "\\table_xlsx\\";
+            ExportPlatform = exportPlat;
+            ClearGlobalData();
+
+            string fileFullPath = DirExcel + fileName;
+            Console.WriteLine(string.Format("PackageFile: {0} DirExcel: {1}", fileFullPath, DirExcel));
+            AnalysisExcelFile(fileFullPath);
         }
 
         Dictionary<int, string> ColumDescMap = new Dictionary<int, string>();    // 第一行 列描述
@@ -84,6 +94,7 @@ namespace ExcelExporter.lua
                     int sheetCount = workbook.NumberOfSheets;
                     for (int i = 0; i < sheetCount; i++)
                     {
+                        Console.WriteLine(string.Format("AnalysisExcelFile: {0} {1}", fileName, i));
                         sheet = workbook.GetSheetAt(i);
 
                         ClearSheetData();
@@ -91,7 +102,7 @@ namespace ExcelExporter.lua
                         if (!content.Equals(string.Empty))
                         {
                             string table_name = exls_file_name_wihtout_suffix + "_" + sheet.SheetName;
-                            WriteLuaFile(content, table_name + ".lua");
+                            WriteJsonFile(content, table_name + ".json");
                         }
                     }
                 }
@@ -157,7 +168,7 @@ namespace ExcelExporter.lua
                     continue;
                 }
                 type_colums_count++;
-//                ColumType.Add(cell.ToString());
+                //                ColumType.Add(cell.ToString());
                 ColumTypeMap.Add(cell.Address.Column, cell.ToString());
             }
 
@@ -181,7 +192,7 @@ namespace ExcelExporter.lua
                     continue;
                 }
                 clt_colums_count++;
-//                ColumCltField.Add(cell.ToString());
+                //                ColumCltField.Add(cell.ToString());
                 ColumCltFieldMap.Add(cell.Address.Column, cell.ToString());
             }
 
@@ -189,6 +200,7 @@ namespace ExcelExporter.lua
 
             SheetIds.Clear();
 
+            Dictionary<int, Dictionary<string, object>> keyValuePairsSheet = new Dictionary<int, Dictionary<string, object>>();
             for (int row = Define.StartRowIndex; row <= TotalRowCount; row++)
             {
                 IRow rowData = sheet.GetRow(row);
@@ -202,34 +214,21 @@ namespace ExcelExporter.lua
                     }
                     else
                     {
-                        if (exls_name.Equals("characters_red") && sheet.SheetName.Equals("skill"))
-                        {
-                            CheckCharacterRowJsonConfig(row1, rowData, 6, 9); // effect_id, hit_data
-                            CheckCharacterRowJsonConfig(row1, rowData, 6, 10); // effect_id, hit_time
-                            CheckCharacterRowJsonConfig(row1, rowData, 6, 5); // effect_id, target_relation
-                        }
-                        table_data += ProcessRow(row, rowData);
+                        var id = (int)(rowData.GetCell(1).NumericCellValue);
+                        var rowDic = ProcessRow(row, rowData);
+                        keyValuePairsSheet.Add(id, rowDic);
                     }
                 }
             }
 
-            string table_name = exls_name + "_" + sheet.SheetName;
-            string content = string.Format(Define.TABLE_DATA_TEMP, table_data, table_name);
-            //Console.WriteLine(content);
-
-            return content;
-
-            //WriteLuaFile(content, table_name + ".lua");
+            return JsonConvert.SerializeObject(keyValuePairsSheet);
         }
 
         List<string> SheetIds = new List<string>();
         // rowIndex 1-5 文件头
-        private string ProcessRow(int rowIndex, IRow row)
+        private Dictionary<string, object> ProcessRow(int rowIndex, IRow row)
         {
-            string row_data = string.Empty;
-            int lastCellNum = row.LastCellNum;
-
-            row_data += "{";
+            Dictionary<string, object> keyValuePairsRow = new Dictionary<string, object>();
             // 第一列默认忽略
             foreach (KeyValuePair<int, string> kv in ColumCltFieldMap)
             {
@@ -243,6 +242,7 @@ namespace ExcelExporter.lua
                     // 后续列都认为无效
                     break;
                 }
+
                 // 根据类型区分处理
                 string type = string.Empty;
                 if (!ColumTypeMap.TryGetValue(field_colum_id, out type))
@@ -268,10 +268,16 @@ namespace ExcelExporter.lua
                     SheetIds.Add(cell_id);
                 }
 
+                string columName = kv.Value;    // 列头名，做为key
+                if (columName.Equals(string.Empty))
+                {
+                    // 表头没定义，不输出
+                    continue;
+                }
                 if (type == "int" || type == "number" || type == "num" || type == "float")
                 {
-                    row_data += (cell != null) ? cell.NumericCellValue.ToString() : Define.DefaultLuaNum;// Utils.GetCellValue(row.GetCell(i)); //
-                    row_data += ",";
+                    var v = (cell != null) ? cell.NumericCellValue : 0;
+                    keyValuePairsRow.Add(columName, v);
                 }
                 else if (type == "string" || type == "str")
                 {
@@ -280,28 +286,14 @@ namespace ExcelExporter.lua
                         if (cell != null)
                         {
                             cell.SetCellType(CellType.String);
-                            string content = cell.StringCellValue;
-
-                            content = content.Replace("\n", "");
-                            content = content.Replace("\r", "");
-                            StringBuilder sb = new StringBuilder();
-                            foreach (char ch in content)
-                            {
-                                if (ch == '\"' || ch == '\\')
-                                {
-                                    sb.Append('\\');
-                                }
-                                sb.Append(ch);
-                            }
-                            content = sb.ToString();
-
-                            row_data += "\"" + content + "\"";
+                            var v = (cell != null) ? cell.StringCellValue : string.Empty;
+                            keyValuePairsRow.Add(columName, v);
                         }
                         else
                         {
-                            row_data += Define.DefaultLuaStr;
+                            keyValuePairsRow.Add(columName, string.Empty);
                         }
-                        row_data += ",";
+
                     }
                     catch (Exception e)
                     {
@@ -314,22 +306,9 @@ namespace ExcelExporter.lua
                     {
                         try
                         {
-                            //DataFormatter formatter = new DataFormatter(); //creating formatter using the default locale
-                            //string json = formatter.FormatCellValue(cell); //Returns the formatted value of a cell as a String regardless of the cell type.
-
                             string json = cell.StringCellValue;
-                            json = json.Replace("\n", "");
-                            json = json.Replace("\r", "");
                             var jsonObj = JsonConvert.DeserializeObject(json);
-                            //Console.WriteLine(JsonConvert.DeserializeObject(json) is Array);
-                            if (jsonObj != null)
-                            {
-                                row_data += JsonObjectToLuaStr(jsonObj);
-                            }
-                            else
-                            {
-                                row_data += Define.DefaultLuaTable + ",";
-                            }
+                            keyValuePairsRow.Add(columName, jsonObj);
                         }
                         catch (Exception)
                         {
@@ -339,7 +318,7 @@ namespace ExcelExporter.lua
                     }
                     else
                     {
-                        row_data += Define.DefaultLuaTable + ",";
+                        keyValuePairsRow.Add(columName, null);
                     }
                 }
                 else
@@ -348,9 +327,7 @@ namespace ExcelExporter.lua
                 }
             }
 
-            row_data += "},\n";
-
-            return row_data;
+            return keyValuePairsRow;
         }
 
         string JsonObjectToLuaStr(object obj)
@@ -463,9 +440,9 @@ namespace ExcelExporter.lua
             }
         }
 
-        private void WriteLuaFile(string content, string fileName)
+        private void WriteJsonFile(string content, string fileName)
         {
-            string luaPath = DirExcel + "/lua/";
+            string luaPath = DirExcel + "/json/";
             if (!Directory.Exists(luaPath))
             {
                 Directory.CreateDirectory(luaPath);
@@ -486,7 +463,7 @@ namespace ExcelExporter.lua
             }
             // Define.TABLE_FIELD_TEMPLATE 应该包含了多个 SINGLE_TABLE_FIELD_TEMPLATE
             string data = string.Format(Define.TABLE_FIELD_TEMPLATE, fieldsStr);
-            WriteLuaFile(data, "TableFieldDef.lua");
+            WriteJsonFile(data, "TableFieldDef.lua");
         }
 
         // 检测角色配置表的一行中具体某几列的json数组长度一致性

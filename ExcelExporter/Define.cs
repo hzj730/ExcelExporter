@@ -40,9 +40,13 @@ return _G.TableDefine
 ";
 
         // 转出Lua时替换一些统一值，节约内存
-        public static readonly string DefaultNum = "TableDefaultNum";
-        public static readonly string DefaultStr = "TableDefaultStr";
-        public static readonly string DefaultTable = "TableDefaultTable";
+        public static readonly string DefaultLuaNum = "TableDefaultNum";
+        public static readonly string DefaultLuaStr = "TableDefaultStr";
+        public static readonly string DefaultLuaTable = "TableDefaultTable";
+
+        public static readonly int DefaultJsonNum = 0;
+        public static readonly string DefaultJsonStr = string.Empty;
+        public static readonly string DefaultJsonTable = "[]";
 
         public static string TABLE_DATA_TEMP =
 @"-- 该文件自动生成，请不要随修改
